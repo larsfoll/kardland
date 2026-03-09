@@ -900,7 +900,7 @@ function begin_game(dealNumber) {
   playerHasNotYetMoved = true;
 
   // Create deck of cards, shuffle them, all face up.
-  var deck = table.newDeck(false);
+  var deck = table.newDeck();
   table.shuffle(deck, dealNumber);
   table.flipCards(deck, true);
 

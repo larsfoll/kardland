@@ -15,7 +15,7 @@ var fiftytwo = fiftytwo || {};
 // suit        <- treat as a read-only property, assign with setIndex() below.
 // rank        <- treat as a read-only property, assign with setIndex() below.
 // ------------- Methods --------------
-// setIndex (index)             <- 1 to 52 range for a normal deck of cards; 53, 54 for jokers.
+// setIndex (index)             <- 1 to 52 range for a normal deck of cards;
 // setFaceUp (faceUp)           <- sets faceUp (card is redrawn).
 // compareColorWithCard (card)	<- compares self with card returns: UNDEFINED, SAME or OPPOSITE.
 // imageNameForIndex (index)
@@ -76,7 +76,7 @@ fiftytwo.Card.prototype.setIndex = function (index) {
   this._index = index;
 
   // A card index with an invalid range can not be face up.
-  if (index <= 0 || index > 54) {
+  if (index <= 0 || index > 52) {
     this.faceUp = false;
   }
 
@@ -144,8 +144,6 @@ var cardSuit = {
   CLUBS: 2,
   HEARTS: 3,
   SPADES: 4,
-  RED: 5, // For the Red Joker
-  BLACK: 6, // For the Black Joker
 };
 
 fiftytwo.Card.prototype._suitForIndex = function (index) {
@@ -174,10 +172,6 @@ fiftytwo.Card.prototype._suitForIndex = function (index) {
       default:
         suit = cardSuit.SPADES;
     }
-  } else if (index === 53) {
-    suit = cardSuit.RED;
-  } else if (index === 54) {
-    suit = cardSuit.BLACK;
   }
 
   return suit;
@@ -200,7 +194,7 @@ fiftytwo.Card.prototype._colorForSuit = function (suit) {
 
 // -------------------------------------------------------------------------------- _rankForIndex ()
 // Ranks returned are 1 (for the Ace) through 13 (for the King) and 0 (zero)
-// for Jokers. If the card is unknown (face down) a -1 is returned.
+// If the card is unknown (face down) a -1 is returned.
 
 fiftytwo.Card.prototype._rankForIndex = function (index) {
   "use strict";
@@ -208,8 +202,6 @@ fiftytwo.Card.prototype._rankForIndex = function (index) {
 
   if (index >= 1 && index <= 52) {
     rank = ((index - 1) % 13) + 1;
-  } else if (index === 53 || index === 54) {
-    rank = 0;
   }
 
   return rank;
@@ -241,10 +233,6 @@ fiftytwo.Card.prototype.imageNameForIndex = function (index) {
         name = rank + "s.svg";
         break;
     }
-  } else if (index === 53) {
-    name = "jr.svg";
-  } else if (index === 54) {
-    name = "jb.svg";
   } else {
     name = "back.png";
   }
@@ -1241,10 +1229,10 @@ fiftytwo.ImageCache.prototype.fetch = function (completionFunction) {
   this._completionFunction = completionFunction;
   this.completed = false;
 
-  // We are pre-loading 55 images.
-  this._imagesToLoad = 55;
+  // 52 default + back
+  this._imagesToLoad = 53;
 
-  for (i = 0; i <= 54; i += 1) {
+  for (i = 0; i <= 53; i += 1) {
     // Create image element.
     image = document.createElement("img");
     image.style.display = "block";
@@ -1675,7 +1663,7 @@ fiftytwo.Animation.prototype._execute = function (shadowElement) {
 // dealCardToStack (card, stack)
 // moveTopCardFromStackToStack (srcStack, destStack, animate)
 // appendCardElementsToElement (element)
-// newDeck (includeJokers)
+// newDeck ()
 // shuffle (cardArray)
 // flipCards (cardArray, faceUp)
 // canDragCardFromStack (card, stack)
@@ -2135,16 +2123,12 @@ fiftytwo.Table.prototype.performFunctionWhenLoadingComplete = function (
 
 // -------------------------------------------------------------------------------------- newDeck ()
 
-fiftytwo.Table.prototype.newDeck = function (includeJokers) {
+fiftytwo.Table.prototype.newDeck = function () {
   "use strict";
   var count = 52;
   var i;
   var card;
   var deck = [];
-
-  if (includeJokers) {
-    count = 54;
-  }
 
   for (i = 1; i <= count; i += 1) {
     card = new fiftytwo.Card(i, this._imageCache.path, false);
