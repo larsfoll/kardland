@@ -2585,3 +2585,11 @@ fiftytwo.Table.prototype._cardClicked = function (card) {
     this.cardClicked(card, card._stackContaining);
   }
 };
+
+const homeLink = document.querySelector(".home-link");
+
+homeLink?.addEventListener("click", () => {
+  window.addEventListener("beforeunload", (e) => {
+    e.preventDefault();
+  });
+});

@@ -1,0 +1,861 @@
+// Create global table.
+table = new fiftytwo.Table("cards");
+autoPutAwayCards = [];
+fieldWidth = 0;
+gameOver = false;
+playerHasNotYetMoved = true;
+cardsToDeal = 3;
+
+// ------------------------------------------------------------------------------ layoutTable ()
+
+function layoutTable() {
+  "use strict";
+
+  var stack;
+
+  // Create stacks.
+  table
+    .addNewStack("STOCK", "STOCK", 0.0, 0.0, 0.0, 0.0)
+    .setPlaceholderImage("images/klondikeRedealPlaceholder.svg");
+  table
+    .addNewStack("WASTE", "WASTE", 1.2, 0.0, 0.0, 0.0)
+    .setPlaceholderImage("images/klondikeWastePlaceholder.svg");
+  table
+    .addNewStack("DIAMONDS", "FOUNDATION", 3.6, 0.0, 0.0, 0.0)
+    .setPlaceholderImage("images/diamondFoundationPlaceholder.svg");
+  table
+    .addNewStack("CLUBS", "FOUNDATION", 4.8, 0.0, 0.0, 0.0)
+    .setPlaceholderImage("images/clubFoundationPlaceholder.svg");
+  table
+    .addNewStack("HEARTS", "FOUNDATION", 6.0, 0.0, 0.0, 0.0)
+    .setPlaceholderImage("images/heartFoundationPlaceholder.svg");
+  table
+    .addNewStack("SPADES", "FOUNDATION", 7.2, 0.0, 0.0, 0.0)
+    .setPlaceholderImage("images/spadeFoundationPlaceholder.svg");
+  stack = table.addNewStack("COL1", "TABLEAU", 0.0, 1.12, 0.0, 0.25);
+  stack.setVSpreadFaceDown(0.15);
+  stack.setPlaceholderImage("images/kingFoundationPlaceholder.svg");
+  stack = table.addNewStack("COL2", "TABLEAU", 1.2, 1.12, 0.0, 0.25);
+  stack.setVSpreadFaceDown(0.15);
+  stack.setPlaceholderImage("images/kingFoundationPlaceholder.svg");
+  stack = table.addNewStack("COL3", "TABLEAU", 2.4, 1.12, 0.0, 0.25);
+  stack.setVSpreadFaceDown(0.15);
+  stack.setPlaceholderImage("images/kingFoundationPlaceholder.svg");
+  stack = table.addNewStack("COL4", "TABLEAU", 3.6, 1.12, 0.0, 0.25);
+  stack.setVSpreadFaceDown(0.15);
+  stack.setPlaceholderImage("images/kingFoundationPlaceholder.svg");
+  stack = table.addNewStack("COL5", "TABLEAU", 4.8, 1.12, 0.0, 0.25);
+  stack.setVSpreadFaceDown(0.15);
+  stack.setPlaceholderImage("images/kingFoundationPlaceholder.svg");
+  stack = table.addNewStack("COL6", "TABLEAU", 6.0, 1.12, 0.0, 0.25);
+  stack.setVSpreadFaceDown(0.15);
+  stack.setPlaceholderImage("images/kingFoundationPlaceholder.svg");
+  stack = table.addNewStack("COL7", "TABLEAU", 7.2, 1.12, 0.0, 0.25);
+  stack.setVSpreadFaceDown(0.15);
+  stack.setPlaceholderImage("images/kingFoundationPlaceholder.svg");
+}
+
+// -------------------------------------------------------------------------- dealInitialHand ()
+
+function dealInitialHand(cards) {
+  "use strict";
+  var i;
+  var n;
+  var column;
+  var card;
+
+  // Deal out the cards to the tableau in the familiar solitaire pattern.
+  for (i = 0; i < 7; i++) {
+    for (n = i; n < 7; n++) {
+      column = n + 1;
+      card = cards.shift();
+
+      // Only the top card in each column is face up.
+      card.setFaceUp(i === n);
+      table.dealCardToStack(
+        card,
+        table.stackWithIdentifier("COL" + column.toString()),
+      );
+    }
+  }
+
+  // Deal the remaining cards face down to the stock pile.
+  for (i = 0; i < 24; i++) {
+    card = cards.shift();
+    card.setFaceUp(false);
+    table.dealCardToStack(card, table.stackWithIdentifier("STOCK"));
+  }
+}
+
+// ----------------------------------------------------------------------- wasCardAutoPutAway ()
+
+function wasCardAutoPutAway(card) {
+  var putAway = false;
+
+  for (var i = 0, count = autoPutAwayCards.length; i < count; i += 1) {
+    if (autoPutAwayCards[i] === card) {
+      putAway = true;
+      break;
+    }
+  }
+
+  return putAway;
+}
+
+// --------------------------------------------------------------- indicateCardWasAutoPutAway ()
+
+function indicateCardWasAutoPutAway(card) {
+  if (!wasCardAutoPutAway(card)) {
+    autoPutAwayCards.push(card);
+  }
+}
+
+// -------------------------------------------------------------------------- cardsAreOrdered ()
+
+function cardsAreOrdered(stack, startingAtIndex) {
+  var cardTesting = stack.cardAtIndex(startingAtIndex);
+  var followingCard;
+  var ordered = true;
+
+  for (
+    var i = startingAtIndex + 1, cardCount = stack.numberOfCards;
+    i < cardCount;
+    i += 1
+  ) {
+    // The card following cardTesting.
+    followingCard = stack.cardAtIndex(i);
+
+    // The card rank must increase exactly by one.
+    if (cardTesting.rank !== followingCard.rank + 1) {
+      ordered = false;
+      break;
+    }
+
+    // Can't drag if the color sequence of the stack do not alternate.
+    if (
+      cardTesting.compareColorWithCard(followingCard) !==
+      cardColorComparison.OPPOSITE
+    ) {
+      ordered = false;
+      break;
+    }
+
+    // This will be the card to test for in the next pass through the loop.
+    cardTesting = followingCard;
+  }
+
+  return ordered;
+}
+
+// --------------------------------------------------------------------- canDragCardFromStack ()
+
+function canDragCardFromStack(card, stack) {
+  "use strict";
+  var canDrag = false;
+
+  if (card.faceUp) {
+    canDrag = true;
+  }
+
+  return canDrag;
+}
+
+// -------------------------------------------------------------- foundationAndCardSuitsMatch ()
+
+function foundationAndCardSuitsMatch(stack, card) {
+  "use strict";
+  return (
+    (stack.identifier === "DIAMONDS" && card.suit === cardSuit.DIAMONDS) ||
+    (stack.identifier === "CLUBS" && card.suit === cardSuit.CLUBS) ||
+    (stack.identifier === "HEARTS" && card.suit === cardSuit.HEARTS) ||
+    (stack.identifier === "SPADES" && card.suit === cardSuit.SPADES)
+  );
+}
+
+// ------------------------------------------------------------- canDragStackFromStackToStack ()
+
+function canDragStackFromStackToStack(stack, srcStack, destStack) {
+  "use strict";
+  var canDrag = false;
+  var topDestCard;
+  var bottomSrcCard;
+
+  // What is the top card on the stack the player is dragging to?
+  topDestCard = destStack.topCard();
+
+  // What is the bottom card on the stack the player is dragging?
+  bottomSrcCard = stack.cardAtIndex(0);
+
+  // Do we have a top card (if not, we're dragging to an empty stack)?
+  if (topDestCard) {
+    // If there is a card (the destination stack is not empty).
+    // Handle the case when the destination stack is the foundation.
+    if (destStack.role === "FOUNDATION") {
+      // The card being dragged must be one rank higher than
+      // the top card on the foundation, and match its suit.
+      if (
+        bottomSrcCard.rank === topDestCard.rank + 1 &&
+        bottomSrcCard.suit === topDestCard.suit &&
+        stack.numberOfCards === 1
+      ) {
+        canDrag = true;
+      }
+    } else if (destStack.role === "TABLEAU") {
+      // If the stack is the tableau, the rank of the card being
+      // dragged must be one smaller and opposite in color.
+      canDrag =
+        bottomSrcCard.rank + 1 == topDestCard.rank &&
+        bottomSrcCard.compareColorWithCard(topDestCard) ===
+          cardColorComparison.OPPOSITE;
+    }
+  } else {
+    // Empty stack. Allow an ace only on foundations, only a
+    // King may be placed on empty tableua columns.
+    if (destStack.role === "FOUNDATION") {
+      // Foundation - since no card on foundation, card must be an Ace.
+      if (
+        bottomSrcCard.rank === 1 &&
+        stack.numberOfCards === 1 &&
+        foundationAndCardSuitsMatch(destStack, bottomSrcCard)
+      ) {
+        canDrag = true;
+      }
+    } else {
+      // Tableau - since no card on tableau, only a King allowed
+      // (unless a restricted drag).
+      canDrag = bottomSrcCard.rank === 13;
+    }
+  }
+
+  return canDrag;
+}
+
+// -------------------------------------------------------------- foundationShouldTakeCardAll ()
+
+function foundationShouldTakeCardAll(card, table) {
+  "use strict";
+  var stackToPutAwayTo = null;
+  var foundationStacks = table.stacksWithRole("FOUNDATION");
+  var topCard;
+
+  // Walk the foundations looking for a match.
+  for (var i = 0, count = foundationStacks.length; i < count; i += 1) {
+    // Top card of foundation.
+    topCard = foundationStacks[i].topCard();
+
+    if (!topCard) {
+      // Foundation is empty (no top card). Only an Ace may be placed.
+      if (card.suit === i && card.rank === 1) {
+        stackToPutAwayTo = foundationStacks[i];
+        break;
+      }
+    } else if (card.suit === topCard.suit && card.rank === topCard.rank + 1) {
+      // Put away any card that it is legal to put away.
+      stackToPutAwayTo = foundationStacks[i];
+      break;
+    }
+  }
+
+  return stackToPutAwayTo;
+}
+
+// ------------------------------------------------------------ foundationShouldTakeCardSmart ()
+
+function foundationShouldTakeCardSmart(card, table) {
+  "use strict";
+  var stackToPutAwayTo = null;
+  var lowestRedFoundationRank = 13;
+  var lowestBlackFoundationRank = 13;
+  var foundationStacks = table.stacksWithRole("FOUNDATION");
+  var count = foundationStacks.length;
+  var i;
+  var stack;
+  var topCard;
+  var oppositeFoundationCard;
+
+  // Walk foundations finding the lowest black ranking card and lowest red ranking cards.
+  for (i = 0; i < count; i += 1) {
+    // Foundation stack.
+    stack = foundationStacks[i];
+
+    // Top card of foundation.
+    topCard = stack.topCard();
+
+    // Compare.
+    if (!topCard) {
+      // If no card on foundation, this becomes (zero) the lowest card of the given color.
+      if (stack.identifier === "DIAMONDS" || stack.identifier === "HEARTS") {
+        lowestRedFoundationRank = 0;
+      } else {
+        lowestBlackFoundationRank = 0;
+      }
+    } else {
+      if (
+        (stack.identifier === "DIAMONDS" || stack.identifier === "HEARTS") &&
+        topCard.rank < lowestRedFoundationRank
+      ) {
+        lowestRedFoundationRank = topCard.rank;
+      } else if (
+        (stack.identifier === "CLUBS" || stack.identifier === "SPADES") &&
+        topCard.rank < lowestBlackFoundationRank
+      ) {
+        lowestBlackFoundationRank = topCard.rank;
+      }
+    }
+  }
+
+  // Walk the foundations looking for a match.
+  for (i = 0; i < count; i += 1) {
+    // Foundation stack.
+    stack = foundationStacks[i];
+
+    // Top card of foundation.
+    topCard = stack.topCard();
+
+    // Compare.
+    if (!topCard) {
+      // Foundation is empty (no top card). Only an Ace may be placed.
+      if (card.rank === 1 && foundationAndCardSuitsMatch(stack, card)) {
+        stackToPutAwayTo = stack;
+        break;
+      }
+    } else if (card.suit === topCard.suit && card.rank === topCard.rank + 1) {
+      // First pass: card must ranked one greater than the top card of
+      // the foundation correspoding to card's suit.
+      // Second pass: two's are always put up (Microsoft way).
+      if (card.rank <= 2) {
+        stackToPutAwayTo = stack;
+      }
+
+      // Third pass: put up if both opposite color foundations are built
+      // up to within two of the card's rank (also Microsoft way).
+      if (
+        (card.suit === cardSuit.DIAMONDS || card.suit === cardSuit.HEARTS) &&
+        card.rank <= lowestBlackFoundationRank + 1
+      ) {
+        stackToPutAwayTo = stack;
+      } else if (
+        (card.suit === cardSuit.CLUBS || card.suit === cardSuit.SPADES) &&
+        card.rank <= lowestRedFoundationRank + 1
+      ) {
+        stackToPutAwayTo = stack;
+      }
+
+      // Fourth pass: there is one case we will also allow, if card ranks
+      // is within 2 greater than both the opposite color's foundation ranks
+      // AND within 3 of its same-color-opposite-suit foundation card (NETCell way).
+      if (!stackToPutAwayTo) {
+        if (
+          card.suit === cardSuit.DIAMONDS &&
+          card.rank <= lowestBlackFoundationRank + 2
+        ) {
+          // Top card of 'opposite' (Hearts) foundation (same color, other suit).
+          oppositeFoundationCard = foundationStacks[2].topCard();
+          if (
+            oppositeFoundationCard &&
+            card.rank <= oppositeFoundationCard.rank + 3
+          ) {
+            stackToPutAwayTo = stack;
+          }
+        } else if (
+          card.suit === cardSuit.CLUBS &&
+          card.rank <= lowestRedFoundationRank + 2
+        ) {
+          // Top card of 'opposite' (Spades) foundation (same color, other suit).
+          oppositeFoundationCard = foundationStacks[3].topCard();
+          if (
+            oppositeFoundationCard &&
+            card.rank <= oppositeFoundationCard.rank + 3
+          ) {
+            stackToPutAwayTo = stack;
+          }
+        } else if (
+          card.suit === cardSuit.HEARTS &&
+          card.rank <= lowestBlackFoundationRank + 2
+        ) {
+          // Top card of 'opposite' (Diamonds) foundation (same color, other suit).
+          oppositeFoundationCard = foundationStacks[0].topCard();
+          if (
+            oppositeFoundationCard &&
+            card.rank <= oppositeFoundationCard.rank + 3
+          ) {
+            stackToPutAwayTo = stack;
+          }
+        } else if (
+          card.suit === cardSuit.SPADES &&
+          card.rank <= lowestRedFoundationRank + 2
+        ) {
+          // Top card of 'opposite' (Clubs) foundation (same color, other suit).
+          oppositeFoundationCard = foundationStacks[1].topCard();
+          if (
+            oppositeFoundationCard &&
+            card.rank <= oppositeFoundationCard.rank + 3
+          ) {
+            stackToPutAwayTo = stack;
+          }
+        }
+      }
+    }
+  }
+
+  return stackToPutAwayTo;
+}
+
+// ------------------------------------------------------------- determineIfCardsCanBePutAway ()
+
+function determineIfCardsCanBePutAway(table) {
+  "use strict";
+  var didPutAwayCard;
+  var columnStacks = table.stacksWithRole("TABLEAU");
+  var wasteStack = table.stackWithIdentifier("WASTE");
+  var i;
+  var count;
+  var stack;
+  var topCard;
+  var destinationStack;
+  var card;
+
+  do {
+    // Indicate no card found at this point.
+    didPutAwayCard = false;
+
+    // Walk the tableaus, examining the top cards of eack stack.
+    count = columnStacks.length;
+    for (i = 0; i < count; i += 1) {
+      // Column stack.
+      stack = columnStacks[i];
+
+      // Card that is on top of stack.
+      topCard = stack.topCard();
+      if (!topCard) {
+        continue;
+      }
+
+      // If card was worried back (or Undone) the player doesn't want us moving the card.
+      if (wasCardAutoPutAway(topCard)) {
+        continue;
+      }
+
+      // Determine if top card of tableau has a foundation it should be put-away to.
+      destinationStack = foundationShouldTakeCardSmart(topCard, table);
+      if (destinationStack) {
+        // Move the card from the tableau stack to the foundation stack.
+        table.moveTopCardFromStackToStack(stack, destinationStack, true);
+        indicateCardWasAutoPutAway(topCard);
+        didPutAwayCard = true;
+
+        // Flip card beneath.
+        card = stack.topCard();
+        if (card && !card.faceUp) {
+          table.flipTopCard(stack, true);
+        }
+      }
+    }
+
+    // Examine the waste stack..
+    if (
+      cardsToDeal === 1 ||
+      table.stackWithIdentifier("STOCK").numberOfCards === 0
+    ) {
+      topCard = wasteStack.topCard();
+      if (topCard && !wasCardAutoPutAway(topCard)) {
+        // Determine if top card of tableau has a foundation it should be put-away to.
+        destinationStack = foundationShouldTakeCardSmart(topCard, table);
+        if (destinationStack) {
+          // Move the card from the waste stack to the foundation stack.
+          table.moveTopCardFromStackToStack(wasteStack, destinationStack, true);
+          indicateCardWasAutoPutAway(topCard);
+          didPutAwayCard = true;
+        }
+      }
+    }
+  } while (didPutAwayCard);
+}
+
+// ---------------------------------------------------------------------- flipCardsIfPossible ()
+
+function flipCardsIfPossible(table) {
+  "use strict";
+  var columnStacks = table.stacksWithRole("TABLEAU");
+  var count = columnStacks.length;
+  var i;
+  var card;
+
+  for (i = 0; i < count; i += 1) {
+    card = columnStacks[i].topCard();
+    if (card && !card.faceUp) {
+      table.flipTopCard(columnStacks[i], true);
+    }
+  }
+}
+
+// ------------------------------------------------------------------------ evaulateUndoState ()
+
+function evaulateUndoState() {
+  var undoButton = document.getElementById("undo_button");
+
+  if (table.canUndo()) {
+    undoButton.style.color = "#000000";
+    undoButton.className = "pillbutton unselectable";
+  } else {
+    undoButton.style.color = "#999999";
+    undoButton.className = "pillbutton unselectable nohover";
+  }
+}
+
+// ------------------------------------------------------------------------ cardDragCompleted ()
+
+function cardDragCompleted(table, dragged) {
+  "use strict";
+
+  if (dragged) {
+    if (playerHasNotYetMoved) {
+      playerHasNotYetMoved = false;
+      indicate_played_klondike();
+    }
+
+    flipCardsIfPossible(table);
+    evaluate_table();
+  }
+}
+
+// ------------------------------------------------------------------------ cardDoubleClicked ()
+
+function cardDoubleClicked(card, stackContaining) {
+  "use strict";
+  var destinationStack = null;
+  var cardMoved = false;
+  var i;
+  var count;
+  var columnStacks = table.stacksWithRole("TABLEAU");
+  var topCard;
+  var emptyTableauStack = null;
+
+  // Only double-clicks on top card are allowed.
+  if (stackContaining.topCard() !== card) {
+    return;
+  }
+
+  // Disallow double-clicking the foundation (card will just get put up again).
+  if (stackContaining.role === "FOUNDATION") {
+    return;
+  }
+
+  // Check first to see if card can be put up in the foundation.
+  destinationStack = foundationShouldTakeCardSmart(card, table);
+  if (destinationStack) {
+    table.moveTopCardFromStackToStack(stackContaining, destinationStack, true);
+    cardMoved = true;
+  }
+
+  if (!cardMoved) {
+    // Walk the tableaus, examining the top cards of eack stack.
+    count = columnStacks.length;
+    for (i = 0; i < count; i += 1) {
+      // Column stack.
+      destinationStack = columnStacks[i];
+
+      // Card that is on top of stack.
+      topCard = destinationStack.topCard();
+      if (!topCard) {
+        // Note empty tableau column, we may use it later.
+        if (!emptyTableauStack) {
+          emptyTableauStack = destinationStack;
+        }
+        continue;
+      }
+
+      // Test if the top card is of the opposite color and if
+      // the rank is one larger than the card double-clicked on.
+      if (
+        card.compareColorWithCard(topCard) === cardColorComparison.OPPOSITE &&
+        topCard.rank === card.rank + 1
+      ) {
+        table.moveTopCardFromStackToStack(
+          stackContaining,
+          destinationStack,
+          true,
+        );
+        cardMoved = true;
+        break;
+      }
+    }
+  }
+
+  if (!cardMoved) {
+    // We make a special case for Kings: if we have an empty tableau, move it.
+    if (card.rank === 13 && emptyTableauStack) {
+      table.moveTopCardFromStackToStack(
+        stackContaining,
+        emptyTableauStack,
+        true,
+      );
+      cardMoved = true;
+    }
+  }
+
+  // Finally, at this point let's relax the "Smart" guidance and
+  // see if the Foundation will accomodate the card after all.
+  if (!cardMoved) {
+    destinationStack = foundationShouldTakeCardAll(card, table);
+    if (destinationStack) {
+      table.moveTopCardFromStackToStack(
+        stackContaining,
+        destinationStack,
+        true,
+      );
+      cardMoved = true;
+    }
+  }
+
+  if (cardMoved) {
+    if (playerHasNotYetMoved) {
+      playerHasNotYetMoved = false;
+      indicate_played_klondike();
+    }
+
+    flipCardsIfPossible(table);
+    evaluate_table();
+  }
+}
+
+// ------------------------------------------------------------------------------ cardClicked ()
+
+function cardClicked(card, stackContaining) {
+  "use strict";
+
+  if (stackContaining.identifier === "STOCK") {
+    deal_button_click();
+  }
+}
+
+// --------------------------------------------------------------------- indicate_played_klondike ()
+
+function indicate_played_klondike() {
+  // Load and store games played and won from local storage.
+  var gamesPlayed = +localStorage.getItem("KARDLAND0_KLONDIKE_PLAYED");
+  if (gamesPlayed === null) {
+    gamesPlayed = 0;
+  }
+  gamesPlayed += 1;
+  localStorage.setItem("KARDLAND0_KLONDIKE_PLAYED", gamesPlayed);
+}
+
+// ------------------------------------------------------------------------ indicate_won_klondike ()
+
+function indicate_won_klondike() {
+  var gamesWon = +localStorage.getItem("KARDLAND0_KLONDIKE_WON");
+  if (gamesWon === null) {
+    gamesWon = 0;
+  }
+  gamesWon += 1;
+  localStorage.setItem("KARDLAND0_KLONDIKE_WON", gamesWon);
+
+  return gamesWon;
+}
+
+// -------------------------------------------------------------------------- displayGameOver ()
+
+function displayGameOver() {
+  // Load and store games played and won from local storage.
+  var gamesPlayed = +localStorage.getItem("KARDLAND0_KLONDIKE_PLAYED");
+  if (gamesPlayed === null) {
+    gamesPlayed = 0;
+  }
+
+  var gamesWon = indicate_won_klondike();
+
+  document.getElementById("gameover_played").innerHTML = gamesPlayed;
+  document.getElementById("gameover_won").innerHTML = gamesWon;
+  document.getElementById("gameover_modal").style.display = "block";
+}
+
+// ------------------------------------------------------------------------ animationComplete ()
+
+function animationComplete(table) {
+  if (gameOver) {
+    setTimeout(displayGameOver, 750);
+  }
+}
+
+// -------------------------------------------------------------------- evaluate_if_game_over ()
+
+function evaluate_if_game_over() {
+  var foundationStacks = table.stacksWithRole("FOUNDATION");
+  var i;
+  var count = foundationStacks.length;
+  var gameOver = true;
+
+  // Walk all the foundations and count the cards on the stack. Anything less than 13 means
+  // we are not done yet.
+  for (i = 0; i < count; i += 1) {
+    if (foundationStacks[i].numberOfCards < 13) {
+      gameOver = false;
+      break;
+    }
+  }
+
+  return gameOver;
+}
+
+// ------------------------------------------------------------------------- new_button_click ()
+
+function new_button_click() {
+  gameOver = false;
+  table.reset();
+
+  // Clear the cards from the DOM.
+  var fieldNode = document.getElementById("field");
+  while (fieldNode.firstChild) {
+    fieldNode.removeChild(fieldNode.firstChild);
+  }
+
+  begin_game(null);
+}
+
+// ------------------------------------------------------------------------ undo_button_click ()
+
+function undo_button_click() {
+  table.undo();
+  evaulateUndoState();
+}
+
+// ------------------------------------------------------------------------ deal_button_click ()
+
+function deal_button_click() {
+  var dealStack = table.stackWithIdentifier("STOCK");
+  var wasteStack = table.stackWithIdentifier("WASTE");
+  var count;
+  var cards;
+
+  // See if there are any cards to deal.
+  if (dealStack.numberOfCards === 0) {
+    count = wasteStack.numberOfCards;
+    do {
+      table.moveTopCardFromStackToStackAndFlip(wasteStack, dealStack, false);
+      count = count - 1;
+    } while (count > 0);
+  } else {
+    count = dealStack.numberOfCards;
+    if (count > cardsToDeal) {
+      count = cardsToDeal;
+    }
+
+    do {
+      table.moveTopCardFromStackToStackAndFlip(dealStack, wasteStack, true);
+      count = count - 1;
+    } while (count > 0);
+  }
+
+  evaluate_table();
+}
+
+// ---------------------------------------------------------------------- size_the_card_table ()
+
+function size_the_card_table() {
+  var hiddenRedealElement;
+
+  fieldWidth = document.getElementById("field").offsetWidth;
+
+  if (fieldWidth < 880) {
+    table.setCardWidth(72);
+  } else if (fieldWidth < 960) {
+    table.setCardWidth(86);
+  } else {
+    table.setCardWidth(100);
+  }
+
+  hiddenRedealElement = document.getElementById("hidden_redeal");
+  hiddenRedealElement.style.width = table.cardWidth + "px";
+  hiddenRedealElement.style.height = table.cardHeight + "px";
+}
+
+// ------------------------------------------------------------------------ size_the_basement ()
+
+function size_the_basement() {
+  basement = document.getElementById("basement");
+  if (basement) {
+    basement.style.top = window.innerHeight + "px";
+  }
+}
+
+// --------------------------------------------------------------------------- window_resized ()
+
+function window_resized() {
+  size_the_card_table();
+  size_the_basement();
+}
+
+// --------------------------------------------------------------------------- evaluate_table ()
+
+function evaluate_table() {
+  determineIfCardsCanBePutAway(table);
+  evaulateUndoState();
+  gameOver = evaluate_if_game_over();
+}
+
+// ------------------------------------------------------------------------------- begin_game ()
+
+function begin_game(dealNumber) {
+  playerHasNotYetMoved = true;
+
+  // Create deck of cards, shuffle them.
+  var deck = table.newDeck();
+  table.shuffle(deck, dealNumber);
+
+  // Deal all the cards out to the tableau (columns).
+  dealInitialHand(deck);
+
+  table.performFunctionWhenLoadingComplete(function () {
+    // Load up div elements in html (display the card table).
+    table.appendCardElementsToElement(document.getElementById("field"));
+    setTimeout(evaluate_table, 1000);
+  });
+}
+
+// -------------------------------------------------------------------------- document.onload ()
+
+// document.onload = function () {
+// Get the width of our play field. Size the 'basement'.
+// 	size_the_card_table ();
+// 	size_the_basement ();
+// }
+
+// ---------------------------------------------------------------------------- window.onload ()
+
+window.onload = function () {
+  var element;
+
+  // Get the width of our play field. Size the 'basement'.
+  size_the_card_table();
+  size_the_basement();
+
+  element = document.getElementById("hidden_redeal");
+  element.style.cursor = "pointer";
+  element.onclick = deal_button_click;
+
+  // Handle window resize events.
+  if (window.addEventListener) {
+    window.addEventListener("resize", window_resized, false);
+  } else if (window.attachEvent) {
+    window.attachEvent("onresize", window_resized);
+  } else {
+    window["onresize"] = window_resized;
+  }
+
+  // Prepare 'Game Over' modal window.
+  gameover_modal = prepare_modal_window("gameover_modal", "gameover_close");
+
+  // Layout the Klondike table.
+  layoutTable();
+
+  // Assign callback functions to enforce Klondike logic.
+  table.canDragCardFromStack = canDragCardFromStack;
+  table.canDragStackFromStackToStack = canDragStackFromStackToStack;
+  table.cardDragCompleted = cardDragCompleted;
+  table.cardDoubleClicked = cardDoubleClicked;
+  table.cardClicked = cardClicked;
+  table.animationComplete = animationComplete;
+
+  begin_game(null);
+};
