@@ -181,6 +181,11 @@ function canDragCardFromStack(card, stack) {
   // Initially assume no restrictions.
   table.dragRestriction = dragRestrictions.NONE;
 
+  if (stack.role === "FOUNDATION") {
+    canDrag = false;
+    return canDrag;
+  }
+
   if (stack.topCard() === card) {
     // The top card can always be dragged.
     canDrag = true;
