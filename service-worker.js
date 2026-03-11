@@ -1,4 +1,4 @@
-const cacheKey = "kardland-assets-1";
+const cacheKey = "kardland-assets-2";
 
 const assetsToCache = [
   "cards/1c.svg",
